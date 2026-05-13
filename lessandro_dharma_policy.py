@@ -51,7 +51,7 @@ _DOWN = bitworld_action_index(encode_buttons(("down",)))
 _LEFT = bitworld_action_index(encode_buttons(("left",)))
 _RIGHT = bitworld_action_index(encode_buttons(("right",)))
 _A = bitworld_action_index(encode_buttons(("a",)))
-_SELECT = bitworld_action_index(encode_buttons(("select",)))
+_SELECT = bitworld_action_index(encode_buttons(("b",)))  # "select" removed from trainable set in 0.26.19+
 
 _DPAD = [_UP, _DOWN, _LEFT, _RIGHT]
 _SPIRAL = [_RIGHT, _RIGHT, _DOWN, _DOWN, _LEFT, _LEFT, _UP, _UP]
