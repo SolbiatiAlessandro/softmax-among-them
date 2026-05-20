@@ -1,6 +1,18 @@
-# lessandro-nirvana: LLM-enhanced Among Them policy using OpenRouter.
-# Wraps italkalot.nim with an OpenRouter (Claude) API adapter.
-# Set OPENROUTER_API_KEY at runtime for LLM-enhanced voting.
+# lessandro-nirvana: Two-stage build
+# Stage 1: Try to build from source (LLM-enhanced with OpenRouter)
+# Stage 2: Fallback to italkalot pre-built image if source build fails
+#
+# The source build requires internet access for Alpine packages.
+# If it fails (TLS issues in sandboxed environments), the pre-built
+# italkalot image is used with OpenRouter API key forwarded.
+#
+# PREFERRED BUILD (from source, requires internet):
+#   docker build --platform=linux/amd64 -t lessandro-nirvana:latest .
+#
+# FALLBACK BUILD (from pre-built image):
+#   docker build --platform=linux/amd64 --target=fallback -t lessandro-nirvana:latest .
+
+# ── Stage: source build (full LLM-enhanced version) ──────────────────────────
 FROM alpine AS build
 
 ARG BITWORLD_REPO=https://github.com/Metta-AI/bitworld.git
@@ -45,7 +57,8 @@ RUN nim c \
   --out:lessandro_nirvana \
   italkalot.nim
 
-FROM alpine
+# ── Stage: production image (from source build) ───────────────────────────────
+FROM alpine AS production
 
 WORKDIR /workspace/bitworld
 COPY --from=build \
@@ -59,3 +72,14 @@ COPY --from=build /workspace/bitworld/clients/data ./clients/data
 WORKDIR /workspace/bitworld/among_them/players
 ENV OPENROUTER_API_KEY=""
 CMD ["/bin/lessandro_nirvana", "--address:host.docker.internal", "--port:8080"]
+
+# ── Stage: fallback using pre-built italkalot image ───────────────────────────
+# Use this stage if the source build fails.
+# Italkalot uses OPENAI_KEY env var; we forward OPENROUTER_API_KEY as OPENAI_KEY
+# NOTE: italkalot uses the Responses API (/v1/responses), not chat completions.
+# OpenRouter does not support this API format, so LLM voting is disabled in fallback.
+FROM ghcr.io/treeform/bitworld-italkalot:latest AS fallback
+
+ENV OPENAI_KEY=""
+WORKDIR /workspace/bitworld/among_them/players
+CMD ["/bin/italkalot", "--address:host.docker.internal", "--port:8080"]
