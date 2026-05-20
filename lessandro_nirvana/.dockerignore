@@ -1,0 +1,8 @@
+among_them/
+baseline-results/
+my-player-results/
+replays/
+.venv/
+__pycache__/
+README.md
+amongthemstarter.nim

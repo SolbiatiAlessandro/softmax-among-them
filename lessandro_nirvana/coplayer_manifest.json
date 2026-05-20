@@ -1,0 +1,6 @@
+{
+  "author": "lessandro",
+  "name": "lessandro-nirvana",
+  "image_uri": "lessandro-nirvana:latest",
+  "games": ["among_them"]
+}
