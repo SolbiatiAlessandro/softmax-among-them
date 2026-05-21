@@ -1,0 +1,73 @@
+# lessandro-nirvana Among Them policy — SOURCE BUILD version
+# Use this Dockerfile when building in an environment where HTTPS works.
+# The sandbox sandbox version (Dockerfile) uses a pre-compiled binary instead.
+#
+# Runtime env vars:
+#   COGAMES_ENGINE_WS_URL  - set by the Coworld runner
+#   OPENROUTER_API_KEY     - inject via --secret-env at upload time
+#   OPENROUTER_MODEL       - optional, default: anthropic/claude-haiku-4-5
+
+FROM alpine AS build
+
+ARG BITWORLD_REPO=https://github.com/Metta-AI/bitworld.git
+ARG BITWORLD_REF=c79cdab6237fc929831d5f30a0a8d1c3dc80005d
+
+RUN apk add --no-cache build-base curl gcompat git libcurl
+
+RUN if [ "$(apk --print-arch)" = "x86_64" ]; then \
+    curl -fsSL \
+      -o /usr/local/bin/nimby \
+      https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-X64; \
+  elif [ "$(apk --print-arch)" = "aarch64" ]; then \
+    curl -fsSL \
+      -o /usr/local/bin/nimby \
+      https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-ARM64; \
+  else \
+    echo "unsupported arch: $(apk --print-arch)" && exit 1; \
+  fi && \
+  chmod +x /usr/local/bin/nimby && \
+  nimby use 2.2.4
+
+ENV PATH="/root/.nimby/nim/bin:$PATH"
+
+WORKDIR /workspace
+RUN git clone "$BITWORLD_REPO" bitworld
+WORKDIR /workspace/bitworld
+RUN git checkout "$BITWORLD_REF"
+
+# Sync Nim dependencies
+COPY nimby.lock .
+RUN nimby --global sync nimby.lock && \
+    cat nim.cfg >> /root/.nimby/nim/config/nim.cfg
+
+# Inject the OpenRouter AI module
+COPY openrouter.nim src/bitworld/ais/openrouter.nim
+
+# Create player directory and copy policy
+RUN mkdir -p among_them/players/lessandro_nirvana
+COPY lessandro_nirvana.nim among_them/players/lessandro_nirvana/lessandro_nirvana.nim
+
+WORKDIR /workspace/bitworld/among_them/players/lessandro_nirvana
+RUN nim c \
+  -d:release \
+  -d:botHeadless \
+  --nimcache:/tmp/bitworld-nimcache \
+  --out:lessandro_nirvana \
+  lessandro_nirvana.nim
+
+# Minimal runtime image
+FROM alpine
+
+RUN apk add --no-cache libcurl
+
+WORKDIR /workspace/bitworld
+COPY --from=build \
+  /workspace/bitworld/among_them/players/lessandro_nirvana/lessandro_nirvana \
+  /bin/lessandro_nirvana
+COPY --from=build /workspace/bitworld/among_them/*.json ./among_them/
+COPY --from=build /workspace/bitworld/among_them/*.aseprite ./among_them/
+COPY --from=build /workspace/bitworld/among_them/*.png ./among_them/
+COPY --from=build /workspace/bitworld/clients/data ./clients/data
+
+WORKDIR /workspace/bitworld/among_them/players
+CMD ["/bin/lessandro_nirvana"]
